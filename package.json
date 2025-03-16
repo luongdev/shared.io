@@ -1,0 +1,54 @@
+{
+  "name": "shared.io",
+  "version": "0.1.0",
+  "description": "Thư viện chia sẻ kết nối Socket.IO qua Shared Worker",
+  "main": "dist/shared-io.umd.js",
+  "module": "dist/shared-io.es.js",
+  "types": "dist/types/index.d.ts",
+  "worker": "dist/worker.umd.js",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build && vite build -c vite.worker.config.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "prepare": "npm run build",
+    "create-worker": "mkdir -p public && cp dist/worker.umd.js public/worker.js",
+    "postbuild": "npm run create-worker",
+    "start": "cd examples/server && npm start",
+    "start:client": "cd examples/react-app && npm start"
+  },
+  "keywords": [
+    "socket.io",
+    "shared-worker",
+    "websocket",
+    "realtime",
+    "communication"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "socket.io-client": "^4.7.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.5",
+    "@typescript-eslint/eslint-plugin": "^6.15.0",
+    "@typescript-eslint/parser": "^6.15.0",
+    "@vitest/coverage-v8": "^1.0.4",
+    "eslint": "^8.56.0",
+    "eslint-config-prettier": "^9.1.0",
+    "jsdom": "^23.0.1",
+    "prettier": "^3.1.1",
+    "terser": "^5.39.0",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.10",
+    "vite-plugin-dts": "^4.5.3",
+    "vitest": "^1.0.4"
+  }
+}
