@@ -5,7 +5,6 @@
  */
 
 import { CLIENT_ID_PREFIX, NOTIFICATION_PERMISSION } from './constants';
-import { SharedSocketIOOptions } from './types';
 
 /**
  * Utility class for generating IDs and checking browser features

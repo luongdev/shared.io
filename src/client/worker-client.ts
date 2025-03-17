@@ -29,7 +29,7 @@ export interface IWorkerClient extends WorkerClient {
  * Worker Client class to communicate with the Shared Worker
  */
 export class WorkerClientImpl implements IWorkerClient {
-  private clientId: string;
+  private clientId?: string;
   private options: SharedSocketIOOptions;
   private messageCallbacks: Record<string, Set<(payload: any) => void>> = {};
   private pendingResponses: Record<
@@ -65,7 +65,7 @@ export class WorkerClientImpl implements IWorkerClient {
     try {
       if (isSupported()) {
         const workerPath = this.options.workerUrl || new URL('./worker.js', import.meta.url).href;
-        this.worker = new SharedWorker(workerPath, { name: 'shared.io' });
+        this.worker = new SharedWorker(workerPath, { name: 'shared.io', type: 'module' });
         this.port = this.worker.port;
 
         this.port.onmessage = this.handleMessage.bind(this);

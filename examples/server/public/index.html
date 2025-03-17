@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shared.IO Server Dashboard</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .container {
+      display: grid;
+      grid-template-columns: 300px 1fr;
+      gap: 20px;
+    }
+    .card {
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .card h3 {
+      margin-top: 0;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 8px;
+    }
+    input, textarea, button, select {
+      padding: 8px;
+      margin-bottom: 10px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    button {
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+    ul {
+      list-style-type: none;
+      padding: 0;
+    }
+    li {
+      padding: 8px;
+      margin-bottom: 4px;
+      background-color: #f9f9f9;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    li:hover {
+      background-color: #f0f0f0;
+    }
+    li.selected {
+      background-color: #e0f7fa;
+      border-left: 4px solid #00bcd4;
+    }
+  </style>
+</head>
+<body>
+  <h1>Shared.IO Server Dashboard</h1>
+  
+  <div class="container">
+    <div>
+      <div class="card">
+        <h3>Connected Clients</h3>
+        <ul id="client-list">
+          <li>No clients connected</li>
+        </ul>
+      </div>
+    </div>
+    
+    <div>
+      <div class="card">
+        <h3>Send Message</h3>
+        <form id="message-form">
+          <div>
+            <label for="message-target">Send to:</label>
+            <select id="message-target">
+              <option value="all">All Clients</option>
+            </select>
+          </div>
+          <div>
+            <label for="message-text">Message:</label>
+            <textarea id="message-text" rows="3" required></textarea>
+          </div>
+          <button type="submit">Send Message</button>
+        </form>
+      </div>
+      
+      <div class="card">
+        <h3>Send Notification</h3>
+        <form id="notification-form">
+          <div>
+            <label for="notification-target">Send to:</label>
+            <select id="notification-target">
+              <option value="all">All Clients</option>
+            </select>
+          </div>
+          <div>
+            <label for="notification-title">Title:</label>
+            <input type="text" id="notification-title" required>
+          </div>
+          <div>
+            <label for="notification-body">Body:</label>
+            <textarea id="notification-body" rows="3" required></textarea>
+          </div>
+          <button type="submit">Send Notification</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    // Connect to Socket.IO server
+    const socket = io();
+    
+    // Elements
+    const clientList = document.getElementById('client-list');
+    const messageForm = document.getElementById('message-form');
+    const messageTarget = document.getElementById('message-target');
+    const messageText = document.getElementById('message-text');
+    const notificationForm = document.getElementById('notification-form');
+    const notificationTarget = document.getElementById('notification-target');
+    const notificationTitle = document.getElementById('notification-title');
+    const notificationBody = document.getElementById('notification-body');
+    
+    // Update client list when received from server
+    socket.on('client-list-update', (clients) => {
+      clientList.innerHTML = '';
+      
+      // Update select boxes too
+      const messageTargetOptions = '<option value="all">All Clients</option>';
+      const notificationTargetOptions = '<option value="all">All Clients</option>';
+      
+      if (clients.length === 0) {
+        clientList.innerHTML = '<li>No clients connected</li>';
+      } else {
+        clients.forEach(clientId => {
+          const li = document.createElement('li');
+          li.textContent = clientId;
+          li.dataset.clientId = clientId;
+          li.addEventListener('click', () => selectClient(clientId));
+          clientList.appendChild(li);
+          
+          // Add to select boxes
+          messageTarget.innerHTML += `<option value="${clientId}">${clientId}</option>`;
+          notificationTarget.innerHTML += `<option value="${clientId}">${clientId}</option>`;
+        });
+      }
+    });
+    
+    // Select a client by clicking
+    function selectClient(clientId) {
+      // Remove selected class from all list items
+      document.querySelectorAll('#client-list li').forEach(li => {
+        li.classList.remove('selected');
+      });
+      
+      // Add selected class to clicked item
+      const selectedLi = document.querySelector(`#client-list li[data-client-id="${clientId}"]`);
+      if (selectedLi) {
+        selectedLi.classList.add('selected');
+      }
+      
+      // Select in dropdown
+      messageTarget.value = clientId;
+      notificationTarget.value = clientId;
+    }
+    
+    // Send message form
+    messageForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const clientId = messageTarget.value === 'all' ? null : messageTarget.value;
+      const message = messageText.value;
+      
+      try {
+        const response = await fetch('/api/send-message', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ message, clientId }),
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+          messageText.value = '';
+          alert('Message sent successfully');
+        } else {
+          alert('Error: ' + (data.error || 'Unknown error'));
+        }
+      } catch (error) {
+        alert('Error sending message: ' + error.message);
+      }
+    });
+    
+    // Send notification form
+    notificationForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const clientId = notificationTarget.value === 'all' ? null : notificationTarget.value;
+      const title = notificationTitle.value;
+      const body = notificationBody.value;
+      
+      try {
+        const response = await fetch('/api/send-notification', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ title, body, clientId }),
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+          notificationTitle.value = '';
+          notificationBody.value = '';
+          alert('Notification sent successfully');
+        } else {
+          alert('Error: ' + (data.error || 'Unknown error'));
+        }
+      } catch (error) {
+        alert('Error sending notification: ' + error.message);
+      }
+    });
+  </script>
+</body>
+</html> 

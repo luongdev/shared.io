@@ -53,7 +53,7 @@ export function handleConnect(port: MessagePort): void {
 
   // Set up handler for messages from client
   port.onmessage = (event: MessageEvent) => {
-    handleMessage(event.data, port, clientId);
+    handleMessage(event.data, clientId);
   };
 
   // Start listening for messages
@@ -68,7 +68,7 @@ export function handleConnect(port: MessagePort): void {
  * @param port MessagePort of client
  * @param clientId ID of client
  */
-export function handleMessage(message: WorkerMessage, port: MessagePort, clientId: string): void {
+export function handleMessage(message: WorkerMessage, clientId: string): void {
   // Ensure message has clientId
   if (!message.clientId) {
     message.clientId = clientId;
