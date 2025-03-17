@@ -19,8 +19,6 @@
     "lint:fix": "eslint src --ext .ts --fix",
     "format": "prettier --write \"src/**/*.ts\"",
     "prepare": "npm run build",
-    "create-worker": "mkdir -p public && cp dist/worker.umd.js public/worker.js",
-    "postbuild": "npm run create-worker",
     "start": "cd examples/server && npm start",
     "start:client": "cd examples/react-app && npm start"
   },
