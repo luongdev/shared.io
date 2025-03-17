@@ -9,18 +9,29 @@ declare module '*.vue' {
 
 // Khai báo kiểu cho shared.io
 declare module 'shared.io' {
-  import { Socket } from 'socket.io-client';
-
   export interface ISharedSocketClient {
     connect(): void;
     disconnect(): void;
     emit(event: string, ...args: any[]): void;
-    on(event: string, callback: Function): void;
-    off(event: string, callback?: Function): void;
-    once(event: string, callback: Function): void;
-    requestNotificationPermission(): Promise<NotificationPermission>;
-    showNotification(title: string, options?: NotificationOptions): Promise<Notification | null>;
+    on(event: string, callback: (data: any) => void): void;
+    off(event: string, callback?: (data: any) => void): void;
+    once(event: string, callback: (data: any) => void): void;
   }
 
-  export function createSharedSocketIO(url: string, options?: any): ISharedSocketClient;
+  export interface SharedSocketIOOptions {
+    autoConnect?: boolean;
+    reconnection?: boolean;
+    notifications?: {
+      enabled?: boolean;
+      defaultOptions?: NotificationOptions;
+    };
+    longPolling?: {
+      enabled?: boolean;
+    };
+  }
+
+  export function createSharedSocketIO(
+    url: string,
+    options?: SharedSocketIOOptions
+  ): ISharedSocketClient;
 }

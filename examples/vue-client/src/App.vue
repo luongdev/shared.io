@@ -77,14 +77,10 @@ export default defineComponent({
         autoConnect: true,
         reconnection: true,
         notifications: {
-          enabled: true,
-          defaultOptions: {
-            icon: '/favicon.ico',
-            badge: '/favicon.ico'
-          }
+          enabled: true
         },
         longPolling: {
-          enabled: false,
+          enabled: false
         }
       });
 
@@ -111,11 +107,13 @@ export default defineComponent({
         
         messages.value.push(data);
         
-        // Show notification
-        socket.value?.showNotification('New Message', {
-          body: data.text,
-          icon: '/favicon.ico'
-        });
+        // Hiển thị thông báo trong trình duyệt
+        if (Notification.permission === 'granted') {
+          new Notification('New Message', {
+            body: data.text,
+            icon: '/favicon.ico'
+          });
+        }
       });
 
       // Lắng nghe thông báo từ server
@@ -129,20 +127,20 @@ export default defineComponent({
         
         notifications.value.push(data);
         
-        // Show notification
-        socket.value?.showNotification(data.title, {
-          body: data.body,
-          icon: '/favicon.ico'
-        });
+        // Hiển thị thông báo trong trình duyệt
+        if (Notification.permission === 'granted') {
+          new Notification(data.title, {
+            body: data.body,
+            icon: '/favicon.ico'
+          });
+        }
       });
     };
 
     // Yêu cầu quyền thông báo
     const requestNotifications = async () => {
-      if (!socket.value) return;
-      
       try {
-        const permission = await socket.value.requestNotificationPermission();
+        const permission = await Notification.requestPermission();
         hasNotificationPermission.value = permission === 'granted';
         console.log('Notification permission:', permission);
       } catch (error) {
