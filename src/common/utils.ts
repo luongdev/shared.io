@@ -1,11 +1,10 @@
 /**
  * Utility Classes and Functions
- * 
+ *
  * This module provides utility functions and classes for the Socket.IO Shared Worker.
  */
 
 import { CLIENT_ID_PREFIX, NOTIFICATION_PERMISSION } from './constants';
-import { SharedSocketIOOptions } from './types';
 
 /**
  * Utility class for generating IDs and checking browser features
@@ -24,8 +23,12 @@ export class Utils {
    * Check if the browser supports Shared Worker
    * @returns true if supported, false otherwise
    */
-  public static isSupported(): boolean {
-    return typeof SharedWorker !== 'undefined';
+  public static workerSupported(): string | undefined {
+    if (typeof SharedWorker !== 'undefined') {
+      return isModuleScript() ? 'es' : 'umd';
+    }
+
+    return undefined;
   }
 
   /**
@@ -57,21 +60,17 @@ export class Utils {
   }
 
   /**
-   * Get URL for worker script
-   * @param baseUrl Base URL (defaults to import.meta.url of the calling module)
-   * @param options Configuration options
-   * @returns URL of the worker script
+   * Kiểm tra xem script đang chạy dưới dạng ES Module hay Classic
+   * @returns true nếu là module, false nếu là classic
    */
-  public static getWorkerUrl(baseUrl: string | URL, options?: Partial<SharedSocketIOOptions>): string {
-    // If user provided a specific URL, use it
-    if (options?.workerUrl) {
-      return typeof options.workerUrl === 'string' 
-        ? options.workerUrl
-        : options.workerUrl.toString();
+  public static isModuleScript(): boolean {
+    try {
+      // Chỉ có thể truy cập import.meta trong môi trường module
+      return typeof import.meta !== 'undefined';
+    } catch (error) {
+      // Nếu có lỗi, giả định là classic script
+      return false;
     }
-
-    // Sử dụng đường dẫn tương đối đơn giản
-    return '/worker.js';
   }
 }
 
@@ -194,7 +193,7 @@ export class LocalStorageTransport implements Transport {
       if (data.sender === this.clientId) return;
 
       // Call all listeners
-      this.listeners.forEach(listener => listener(data.message));
+      this.listeners.forEach((listener) => listener(data.message));
     } catch (error) {
       console.error('Error parsing message:', error);
     }
@@ -204,7 +203,7 @@ export class LocalStorageTransport implements Transport {
     const data = {
       sender: this.clientId,
       message,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     };
 
     localStorage.setItem(this.storageKey, JSON.stringify(data));
@@ -244,10 +243,10 @@ export class TransportFactory {
 
 // Export functions for backward compatibility
 export const generateUniqueId = Utils.generateUniqueId;
-export const isSupported = Utils.isSupported;
+export const workerSupported = Utils.workerSupported;
 export const isBrowserTabVisible = Utils.isBrowserTabVisible;
 export const requestNotificationPermission = Utils.requestNotificationPermission;
-export const getWorkerUrl = Utils.getWorkerUrl;
 export const serializeError = ErrorUtils.serializeError;
 export const deserializeError = ErrorUtils.deserializeError;
-export const createFallbackTransport = TransportFactory.createFallbackTransport; 
+export const createFallbackTransport = TransportFactory.createFallbackTransport;
+export const isModuleScript = Utils.isModuleScript;

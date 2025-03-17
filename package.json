@@ -1,7 +1,7 @@
 {
   "name": "shared.io",
-  "version": "0.1.0",
-  "description": "Thư viện chia sẻ kết nối Socket.IO qua Shared Worker",
+  "version": "0.1.0-beta.1",
+  "description": "Socket.IO client shared connection",
   "main": "dist/shared-io.umd.js",
   "module": "dist/shared-io.es.js",
   "types": "dist/types/index.d.ts",
@@ -19,8 +19,6 @@
     "lint:fix": "eslint src --ext .ts --fix",
     "format": "prettier --write \"src/**/*.ts\"",
     "prepare": "npm run build",
-    "create-worker": "mkdir -p public && cp dist/worker.umd.js public/worker.js",
-    "postbuild": "npm run create-worker",
     "start": "cd examples/server && npm start",
     "start:client": "cd examples/react-app && npm start"
   },
