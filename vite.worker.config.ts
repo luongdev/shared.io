@@ -6,16 +6,16 @@ export default defineConfig({
   build: {
     lib: {
       entry: resolve(__dirname, 'src/worker/index.ts'),
-      name: 'SharedIOWorker',
-      formats: ['es', 'umd'],
-      fileName: (format) => `worker.${format}.js`,
+      name: 'WorkerIO',
+      formats: ['iife'],
+      fileName: () => `worker.js`,
     },
     rollupOptions: {
       output: {
         globals: {
           'socket.io-client': 'io',
         },
-        inlineDynamicImports: true
+        inlineDynamicImports: true,
       },
     },
     outDir: 'dist',
@@ -23,4 +23,4 @@ export default defineConfig({
     minify: 'terser',
     emptyOutDir: false,
   },
-}); 
+});

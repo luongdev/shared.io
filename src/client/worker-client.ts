@@ -65,8 +65,7 @@ export class WorkerClientImpl implements IWorkerClient {
     try {
       const supported = workerSupported();
       if (supported) {
-        const workerPath =
-          this.options.workerUrl || new URL(`./worker.${supported}.js`, import.meta.url).href;
+        const workerPath = this.options.workerUrl || new URL(`./worker.js`, import.meta.url).href;
         this.worker = new SharedWorker(workerPath, {
           name: 'shared.io',
           type: supported === 'es' ? 'module' : 'classic',

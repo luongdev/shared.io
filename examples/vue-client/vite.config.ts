@@ -19,5 +19,8 @@ export default defineConfig({
         ws: true,
       },
     },
+    fs: {
+      allow: ['..', '../../dist'],
+    },
   },
 });

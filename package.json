@@ -1,7 +1,7 @@
 {
   "name": "shared.io",
-  "version": "0.1.1",
-  "description": "Thư viện chia sẻ kết nối Socket.IO qua Shared Worker",
+  "version": "0.1.0-beta.1",
+  "description": "Socket.IO client shared connection",
   "main": "dist/shared-io.umd.js",
   "module": "dist/shared-io.es.js",
   "types": "dist/types/index.d.ts",
