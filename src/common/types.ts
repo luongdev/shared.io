@@ -71,13 +71,13 @@ export interface WorkerMessage {
  */
 export interface ClientToWorkerEvents {
   /** Yêu cầu kết nối */
-  connect: { url: string, options?: any };
+  connect: { url: string; options?: any };
   /** Yêu cầu ngắt kết nối */
   disconnect: void;
   /** Gửi sự kiện */
-  emit: { eventName: string, args: any[] };
+  emit: { eventName: string; args: any[] };
   /** Gửi sự kiện với ACK */
-  emitWithAck: { eventName: string, args: any[] };
+  emitWithAck: { eventName: string; args: any[] };
   /** Đăng ký lắng nghe sự kiện */
   on: { eventName: string };
   /** Hủy đăng ký lắng nghe sự kiện */
@@ -85,7 +85,7 @@ export interface ClientToWorkerEvents {
   /** Đăng ký lắng nghe sự kiện một lần */
   once: { eventName: string };
   /** Đăng ký nhận thông báo */
-  subscribeNotification: { eventName: string, options: NotificationOptions };
+  subscribeNotification: { eventName: string; options: NotificationOptions };
   /** Hủy đăng ký nhận thông báo */
   unsubscribeNotification: { eventName: string };
 }
@@ -99,19 +99,20 @@ export interface WorkerToClientEvents {
   /** Đã ngắt kết nối */
   disconnected: { reason?: string };
   /** Nhận sự kiện */
-  event: { eventName: string, args: any[] };
+  event: { eventName: string; args: any[] };
   /** Phản hồi ACK */
-  ackResponse: { ackId: string, response: any };
+  ackResponse: { ackId: string; response: any };
   /** Lỗi ACK */
-  ackError: { ackId: string, error: any };
+  ackError: { ackId: string; error: any };
   /** Lỗi chung */
-  error: { message: string, details?: any };
+  error: { message: string; details?: any };
 }
 
 /**
  * Các loại tin nhắn
  */
 export enum MessageType {
+  INIT = 'init',
   CONNECT = 'connect',
   DISCONNECT = 'disconnect',
   EMIT = 'emit',
@@ -127,7 +128,7 @@ export enum MessageType {
   DISCONNECTED = 'disconnected',
   SUBSCRIBE_NOTIFICATION = 'subscribeNotification',
   UNSUBSCRIBE_NOTIFICATION = 'unsubscribeNotification',
-  NOTIFICATION = 'notification'
+  NOTIFICATION = 'notification',
 }
 
 /**
@@ -213,4 +214,4 @@ export interface ConnectionStatus {
   options?: any;
   /** Lỗi kết nối (nếu có) */
   error?: any;
-} 
+}

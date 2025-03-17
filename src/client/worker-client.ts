@@ -1,22 +1,17 @@
 /**
  * Worker Client
- * 
+ *
  * This module provides a client interface to communicate with the Shared Worker.
  */
 
-import { 
-  WorkerClient, 
-  WorkerMessage, 
-  SharedSocketIOOptions 
-} from '../common/types';
-import { 
-  generateUniqueId, 
-  isSupported, 
-  createFallbackTransport, 
-  getWorkerUrl,
-  serializeError
+import { WorkerClient, WorkerMessage, SharedSocketIOOptions, MessageType } from '../common/types';
+import {
+  generateUniqueId,
+  isSupported,
+  createFallbackTransport,
+  serializeError,
 } from '../common/utils';
-import { CLIENT_ID_PREFIX, DEFAULT_OPTIONS } from '../common/constants';
+import { DEFAULT_OPTIONS } from '../common/constants';
 
 /**
  * Interface for Worker Client
@@ -37,11 +32,14 @@ export class WorkerClientImpl implements IWorkerClient {
   private clientId: string;
   private options: SharedSocketIOOptions;
   private messageCallbacks: Record<string, Set<(payload: any) => void>> = {};
-  private pendingResponses: Record<string, { 
-    resolve: (value: any) => void, 
-    reject: (reason: any) => void,
-    timeout: number 
-  }> = {};
+  private pendingResponses: Record<
+    string,
+    {
+      resolve: (value: any) => void;
+      reject: (reason: any) => void;
+      timeout: number;
+    }
+  > = {};
   private worker: SharedWorker | null = null;
   private port: MessagePort | null = null;
   private fallbackTransport: any = null;
@@ -51,9 +49,8 @@ export class WorkerClientImpl implements IWorkerClient {
    * @param options Socket.IO options
    */
   constructor(options?: Partial<SharedSocketIOOptions>) {
-    this.clientId = generateUniqueId(CLIENT_ID_PREFIX);
     this.options = { ...DEFAULT_OPTIONS, ...options };
-    
+
     if (this.options.autoConnect) {
       this.connect();
     }
@@ -64,13 +61,13 @@ export class WorkerClientImpl implements IWorkerClient {
    */
   public connect(): void {
     if (this.isConnected) return;
-    
+
     try {
       if (isSupported()) {
         const workerPath = this.options.workerUrl || new URL('./worker.js', import.meta.url).href;
         this.worker = new SharedWorker(workerPath, { name: 'shared.io' });
         this.port = this.worker.port;
-        
+
         this.port.onmessage = this.handleMessage.bind(this);
         this.port.onmessageerror = this.handleError.bind(this);
         this.port.start();
@@ -78,7 +75,7 @@ export class WorkerClientImpl implements IWorkerClient {
         this.fallbackTransport = createFallbackTransport();
         this.fallbackTransport.onMessage(this.handleMessage.bind(this));
       }
-      
+
       this.isConnected = true;
     } catch (error) {
       console.error('Error connecting to Shared Worker:', error);
@@ -91,24 +88,24 @@ export class WorkerClientImpl implements IWorkerClient {
    */
   public disconnect(): void {
     if (!this.isConnected) return;
-    
-    Object.keys(this.pendingResponses).forEach(id => {
+
+    Object.keys(this.pendingResponses).forEach((id) => {
       const { reject, timeout } = this.pendingResponses[id];
       clearTimeout(timeout);
       reject(new Error('Disconnected from worker'));
       delete this.pendingResponses[id];
     });
-    
+
     if (this.port) {
       this.port.close();
       this.port = null;
     }
-    
+
     if (this.fallbackTransport) {
       this.fallbackTransport.close();
       this.fallbackTransport = null;
     }
-    
+
     this.worker = null;
     this.isConnected = false;
   }
@@ -121,13 +118,13 @@ export class WorkerClientImpl implements IWorkerClient {
     if (!this.isConnected) {
       throw new Error('Not connected to worker');
     }
-    
+
     const completeMessage: WorkerMessage = {
       ...message,
       clientId: message.clientId || this.clientId,
-      timestamp: message.timestamp || Date.now()
+      timestamp: message.timestamp || Date.now(),
     };
-    
+
     try {
       if (this.port) {
         this.port.postMessage(completeMessage);
@@ -151,29 +148,31 @@ export class WorkerClientImpl implements IWorkerClient {
         reject(new Error('Not connected to worker'));
         return;
       }
-      
+
       const messageId = message.id || generateUniqueId();
       const messageWithId: WorkerMessage = {
         ...message,
         id: messageId,
         clientId: message.clientId || this.clientId,
-        timestamp: message.timestamp || Date.now()
+        timestamp: message.timestamp || Date.now(),
       };
-      
+
       // Set up timeout
       const timeoutId = window.setTimeout(() => {
         if (this.pendingResponses[messageId]) {
-          this.pendingResponses[messageId].reject(new Error(`Timeout waiting for response to message: ${message.type}`));
+          this.pendingResponses[messageId].reject(
+            new Error(`Timeout waiting for response to message: ${message.type}`)
+          );
           delete this.pendingResponses[messageId];
         }
       }, this.options.timeout || 20000);
-      
+
       this.pendingResponses[messageId] = {
         resolve,
         reject,
-        timeout: timeoutId
+        timeout: timeoutId,
       };
-      
+
       try {
         this.send(messageWithId);
       } catch (error) {
@@ -193,7 +192,7 @@ export class WorkerClientImpl implements IWorkerClient {
     if (!this.messageCallbacks[type]) {
       this.messageCallbacks[type] = new Set();
     }
-    
+
     this.messageCallbacks[type].add(callback);
   }
 
@@ -204,7 +203,7 @@ export class WorkerClientImpl implements IWorkerClient {
    */
   public unsubscribe(type: string, callback?: (payload: any) => void): void {
     if (!this.messageCallbacks[type]) return;
-    
+
     if (callback) {
       this.messageCallbacks[type].delete(callback);
     } else {
@@ -218,23 +217,30 @@ export class WorkerClientImpl implements IWorkerClient {
    */
   private handleMessage(event: MessageEvent | any): void {
     const message: WorkerMessage = event.data || event;
-    
+
+    if (MessageType.INIT === message.type) {
+      if (!this.clientId && message.clientId) {
+        this.clientId = message.clientId;
+      }
+      return;
+    }
+
     if (message.id && this.pendingResponses[message.id]) {
       const { resolve, reject, timeout } = this.pendingResponses[message.id];
       clearTimeout(timeout);
-      
+
       if (message.type === 'error') {
         reject(message.payload);
       } else {
         resolve(message.payload);
       }
-      
+
       delete this.pendingResponses[message.id];
       return;
     }
-    
+
     if (this.messageCallbacks[message.type]) {
-      this.messageCallbacks[message.type].forEach(callback => {
+      this.messageCallbacks[message.type].forEach((callback) => {
         try {
           callback(message.payload);
         } catch (error) {
@@ -250,10 +256,10 @@ export class WorkerClientImpl implements IWorkerClient {
    */
   private handleError(error: any): void {
     console.error('Error from Shared Worker:', error);
-    
+
     if (this.messageCallbacks['error']) {
       const serializedError = serializeError(error);
-      this.messageCallbacks['error'].forEach(callback => {
+      this.messageCallbacks['error'].forEach((callback) => {
         try {
           callback(serializedError);
         } catch (callbackError) {
@@ -271,4 +277,4 @@ export class WorkerClientImpl implements IWorkerClient {
  */
 export function createWorkerClient(options?: Partial<SharedSocketIOOptions>): WorkerClient {
   return new WorkerClientImpl(options);
-} 
+}

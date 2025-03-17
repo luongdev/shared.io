@@ -1,6 +1,6 @@
 /**
  * Utility Classes and Functions
- * 
+ *
  * This module provides utility functions and classes for the Socket.IO Shared Worker.
  */
 
@@ -54,24 +54,6 @@ export class Utils {
     }
 
     return Notification.requestPermission();
-  }
-
-  /**
-   * Get URL for worker script
-   * @param baseUrl Base URL (defaults to import.meta.url of the calling module)
-   * @param options Configuration options
-   * @returns URL of the worker script
-   */
-  public static getWorkerUrl(baseUrl: string | URL, options?: Partial<SharedSocketIOOptions>): string {
-    // If user provided a specific URL, use it
-    if (options?.workerUrl) {
-      return typeof options.workerUrl === 'string' 
-        ? options.workerUrl
-        : options.workerUrl.toString();
-    }
-
-    // Sử dụng đường dẫn tương đối đơn giản
-    return '/worker.js';
   }
 }
 
@@ -194,7 +176,7 @@ export class LocalStorageTransport implements Transport {
       if (data.sender === this.clientId) return;
 
       // Call all listeners
-      this.listeners.forEach(listener => listener(data.message));
+      this.listeners.forEach((listener) => listener(data.message));
     } catch (error) {
       console.error('Error parsing message:', error);
     }
@@ -204,7 +186,7 @@ export class LocalStorageTransport implements Transport {
     const data = {
       sender: this.clientId,
       message,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     };
 
     localStorage.setItem(this.storageKey, JSON.stringify(data));
@@ -247,7 +229,6 @@ export const generateUniqueId = Utils.generateUniqueId;
 export const isSupported = Utils.isSupported;
 export const isBrowserTabVisible = Utils.isBrowserTabVisible;
 export const requestNotificationPermission = Utils.requestNotificationPermission;
-export const getWorkerUrl = Utils.getWorkerUrl;
 export const serializeError = ErrorUtils.serializeError;
 export const deserializeError = ErrorUtils.deserializeError;
-export const createFallbackTransport = TransportFactory.createFallbackTransport; 
+export const createFallbackTransport = TransportFactory.createFallbackTransport;
