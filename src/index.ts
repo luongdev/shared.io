@@ -1,6 +1,6 @@
 /**
  * Socket.IO Shared Worker Library
- * 
+ *
  * This library allows sharing a Socket.IO connection across multiple browser tabs
  * using a Shared Worker.
  */
@@ -26,5 +26,5 @@ export type {
   WorkerClient,
   WorkerMessage,
   MessageType,
-  NotificationAPI
-} from './common/types'; 
+  NotificationAPI,
+} from './common/types';

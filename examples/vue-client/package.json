@@ -8,7 +8,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "shared.io": "file:../../shared.io-0.1.0.tgz",
+    "shared.io": "file:../..",
     "vue": "^3.3.4"
   },
   "devDependencies": {

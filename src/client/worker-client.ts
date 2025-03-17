@@ -7,7 +7,7 @@
 import { WorkerClient, WorkerMessage, SharedSocketIOOptions, MessageType } from '../common/types';
 import {
   generateUniqueId,
-  isSupported,
+  workerSupported,
   createFallbackTransport,
   serializeError,
 } from '../common/utils';
@@ -63,9 +63,14 @@ export class WorkerClientImpl implements IWorkerClient {
     if (this.isConnected) return;
 
     try {
-      if (isSupported()) {
-        const workerPath = this.options.workerUrl || new URL('./worker.js', import.meta.url).href;
-        this.worker = new SharedWorker(workerPath, { name: 'shared.io', type: 'module' });
+      const supported = workerSupported();
+      if (supported) {
+        const workerPath =
+          this.options.workerUrl || new URL(`./worker.${supported}.js`, import.meta.url).href;
+        this.worker = new SharedWorker(workerPath, {
+          name: 'shared.io',
+          type: supported === 'es' ? 'module' : 'classic',
+        });
         this.port = this.worker.port;
 
         this.port.onmessage = this.handleMessage.bind(this);

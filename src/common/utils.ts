@@ -23,8 +23,12 @@ export class Utils {
    * Check if the browser supports Shared Worker
    * @returns true if supported, false otherwise
    */
-  public static isSupported(): boolean {
-    return typeof SharedWorker !== 'undefined';
+  public static workerSupported(): string | undefined {
+    if (typeof SharedWorker !== 'undefined') {
+      return isModuleScript() ? 'es' : 'umd';
+    }
+
+    return undefined;
   }
 
   /**
@@ -53,6 +57,20 @@ export class Utils {
     }
 
     return Notification.requestPermission();
+  }
+
+  /**
+   * Kiểm tra xem script đang chạy dưới dạng ES Module hay Classic
+   * @returns true nếu là module, false nếu là classic
+   */
+  public static isModuleScript(): boolean {
+    try {
+      // Chỉ có thể truy cập import.meta trong môi trường module
+      return typeof import.meta !== 'undefined';
+    } catch (error) {
+      // Nếu có lỗi, giả định là classic script
+      return false;
+    }
   }
 }
 
@@ -225,9 +243,10 @@ export class TransportFactory {
 
 // Export functions for backward compatibility
 export const generateUniqueId = Utils.generateUniqueId;
-export const isSupported = Utils.isSupported;
+export const workerSupported = Utils.workerSupported;
 export const isBrowserTabVisible = Utils.isBrowserTabVisible;
 export const requestNotificationPermission = Utils.requestNotificationPermission;
 export const serializeError = ErrorUtils.serializeError;
 export const deserializeError = ErrorUtils.deserializeError;
 export const createFallbackTransport = TransportFactory.createFallbackTransport;
+export const isModuleScript = Utils.isModuleScript;
