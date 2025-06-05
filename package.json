@@ -2,24 +2,25 @@
   "name": "shared.io",
   "version": "0.1.0-beta.1",
   "description": "Socket.IO client shared connection",
-  "main": "dist/shared-io.umd.js",
-  "module": "dist/shared-io.es.js",
+  "main": "dist-cjs/shared-io.cjs.js",
   "types": "dist/types/index.d.ts",
   "worker": "dist/worker.umd.js",
   "files": [
-    "dist"
+    "dist",
+    "dist-cjs"
   ],
   "scripts": {
     "dev": "vite",
     "build": "vite build --mode development && vite build -c vite.worker.config.mts --mode development",
     "build:prod": "vite build --mode production && vite build -c vite.worker.config.mts --mode production",
+    "build:cjs": "vite build -c vite.cjs.config.mts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "lint": "eslint src --ext .ts",
     "lint:fix": "eslint src --ext .ts --fix",
     "format": "prettier --write \"src/**/*.ts\"",
-    "prepare": "npm run build",
+    "prepare": "npm run build && npm run build:cjs",
     "start": "cd examples/server && npm start",
     "start:client": "cd examples/react-app && npm start"
   },

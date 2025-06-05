@@ -4,6 +4,7 @@ node_modules/
 
 # Thư mục dist
 dist/
+dist-cjs/
 
 # Các file log
 *.log
@@ -30,3 +31,7 @@ coverage/
 # Các file hệ thống
 .DS_Store
 Thumbs.db
+
+# lock files
+package-lock.json
+yarn.lock
