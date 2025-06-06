@@ -1,17 +1,12 @@
 /**
  * Socket Manager
- * 
+ *
  * This module manages Socket.IO connection and event handling.
  */
 
 import { io, Socket } from 'socket.io-client';
-import {
-  WorkerMessage,
-  MessageType,
-  SharedSocketIOOptions,
-  ConnectionStatus
-} from '../common/types';
-import { serializeError } from '../common/utils';
+import { ConnectionStatus, MessageType, SharedSocketIOOptions, WorkerMessage } from '../common/types';
+import { generateUniqueId, serializeError } from '../common/utils';
 import { IMessageRouter } from './message-router';
 import { IAckManager } from './ack-manager';
 import { INotificationManager } from './notification';
@@ -22,12 +17,19 @@ import { ILongPollingManager } from './long-polling';
  */
 export interface ISocketManager {
   connect(url: string, options: SharedSocketIOOptions, message: WorkerMessage): void;
+
   disconnect(message: WorkerMessage): void;
+
   emit(eventName: string, args: any[], message: WorkerMessage): void;
+
   emitWithAck(eventName: string, args: any[], message: WorkerMessage): Promise<any>;
+
   on(eventName: string, message: WorkerMessage): void;
+
   off(eventName: string, message: WorkerMessage): void;
+
   once(eventName: string, message: WorkerMessage): void;
+
   getConnectionStatus(): ConnectionStatus;
 }
 
@@ -37,7 +39,7 @@ export interface ISocketManager {
 export class SocketManager implements ISocketManager {
   private socket: Socket | null = null;
   private connectionStatus: ConnectionStatus = {
-    connected: false
+    connected: false,
   };
   private registeredEvents: Record<string, Set<string>> = {};
 
@@ -62,15 +64,17 @@ export class SocketManager implements ISocketManager {
    */
   public connect(url: string, options: SharedSocketIOOptions, message: WorkerMessage): void {
     const clientId = message.clientId as string;
+    const connectionId = message.payload?.connectionId || generateUniqueId();
 
     // If already connected, do nothing
     if (this.socket && this.socket.connected) {
       this.messageRouter.routeMessageToClient(clientId, {
         type: MessageType.CONNECTED,
         payload: {
-          status: this.connectionStatus
+          status: this.connectionStatus,
+          connectionId,
         },
-        clientId
+        clientId,
       });
       return;
     }
@@ -84,7 +88,10 @@ export class SocketManager implements ISocketManager {
         reconnectionDelay: options.reconnectionDelay,
         reconnectionDelayMax: options.reconnectionDelayMax,
         timeout: options.timeout,
-        transports: options.transports
+        transports: options.transports,
+        path: options.path,
+        query: options.query,
+        auth: options.auth,
       });
 
       // Listen for connect event
@@ -92,15 +99,16 @@ export class SocketManager implements ISocketManager {
         this.connectionStatus = {
           connected: true,
           url,
-          options
+          options,
         };
 
         // Notify all clients
         this.messageRouter.broadcastMessage({
           type: MessageType.CONNECTED,
           payload: {
-            status: this.connectionStatus
-          }
+            status: this.connectionStatus,
+            connectionId,
+          },
         });
 
         // Start long polling if enabled
@@ -108,7 +116,7 @@ export class SocketManager implements ISocketManager {
           this.longPollingManager.start(url, options.longPolling);
         }
 
-        console.log(`Socket.IO connected to ${url}`);
+        console.log(`Socket.IO connected to ${url} with connection ID ${connectionId}`);
       });
 
       // Listen for disconnect event
@@ -117,15 +125,16 @@ export class SocketManager implements ISocketManager {
           connected: false,
           url,
           options,
-          error: reason
+          error: reason,
         };
 
         // Notify all clients
         this.messageRouter.broadcastMessage({
           type: MessageType.DISCONNECTED,
           payload: {
-            reason
-          }
+            reason,
+            connectionId,
+          },
         });
 
         // Stop long polling
@@ -143,7 +152,7 @@ export class SocketManager implements ISocketManager {
         // Notify all clients
         this.messageRouter.broadcastMessage({
           type: MessageType.ERROR,
-          payload: serializedError
+          payload: serializedError,
         });
 
         console.error('Socket.IO error:', error);
@@ -160,7 +169,7 @@ export class SocketManager implements ISocketManager {
         connected: false,
         url,
         options,
-        error: serializedError
+        error: serializedError,
       };
 
       // Notify client of error
@@ -168,7 +177,7 @@ export class SocketManager implements ISocketManager {
         type: MessageType.ERROR,
         payload: serializedError,
         id: message.id,
-        clientId
+        clientId,
       });
 
       console.error('Error connecting to Socket.IO server:', error);
@@ -186,10 +195,10 @@ export class SocketManager implements ISocketManager {
       this.messageRouter.routeMessageToClient(clientId, {
         type: MessageType.DISCONNECTED,
         payload: {
-          reason: 'Not connected'
+          reason: 'Not connected',
         },
         id: message.id,
-        clientId
+        clientId,
       });
       return;
     }
@@ -203,7 +212,7 @@ export class SocketManager implements ISocketManager {
 
       // Disconnect if no clients are registered
       let hasRegisteredClients = false;
-      Object.keys(this.registeredEvents).forEach(id => {
+      Object.keys(this.registeredEvents).forEach((id) => {
         if (this.registeredEvents[id].size > 0) {
           hasRegisteredClients = true;
         }
@@ -214,7 +223,7 @@ export class SocketManager implements ISocketManager {
         this.socket = null;
 
         this.connectionStatus = {
-          connected: false
+          connected: false,
         };
 
         // Stop long polling
@@ -229,10 +238,10 @@ export class SocketManager implements ISocketManager {
       this.messageRouter.routeMessageToClient(clientId, {
         type: MessageType.DISCONNECTED,
         payload: {
-          reason: 'Disconnected by request'
+          reason: 'Disconnected by request',
         },
         id: message.id,
-        clientId
+        clientId,
       });
     } catch (error) {
       const serializedError = serializeError(error);
@@ -242,7 +251,7 @@ export class SocketManager implements ISocketManager {
         type: MessageType.ERROR,
         payload: serializedError,
         id: message.id,
-        clientId
+        clientId,
       });
 
       console.error('Error disconnecting Socket.IO:', error);
@@ -262,10 +271,10 @@ export class SocketManager implements ISocketManager {
       this.messageRouter.routeMessageToClient(clientId, {
         type: MessageType.ERROR,
         payload: {
-          message: 'Not connected to Socket.IO server'
+          message: 'Not connected to Socket.IO server',
         },
         id: message.id,
-        clientId
+        clientId,
       });
       return;
     }
@@ -280,7 +289,7 @@ export class SocketManager implements ISocketManager {
         type: MessageType.ERROR,
         payload: serializedError,
         id: message.id,
-        clientId
+        clientId,
       });
 
       console.error(`Error emitting event ${eventName}:`, error);
@@ -346,10 +355,10 @@ export class SocketManager implements ISocketManager {
       this.messageRouter.routeMessageToClient(clientId, {
         type: MessageType.ERROR,
         payload: {
-          message: 'Not connected to Socket.IO server'
+          message: 'Not connected to Socket.IO server',
         },
         id: message.id,
-        clientId
+        clientId,
       });
       return;
     }
@@ -366,14 +375,14 @@ export class SocketManager implements ISocketManager {
     if (!this.socket.hasListeners(eventName)) {
       this.socket.on(eventName, (...args: any[]) => {
         // Send event to all registered clients
-        Object.keys(this.registeredEvents).forEach(id => {
+        Object.keys(this.registeredEvents).forEach((id) => {
           if (this.registeredEvents[id].has(eventName)) {
             this.messageRouter.routeMessageToClient(id, {
               type: MessageType.EVENT,
               payload: {
                 eventName,
-                args
-              }
+                args,
+              },
             });
           }
         });
@@ -405,7 +414,7 @@ export class SocketManager implements ISocketManager {
 
     // Check if any clients are still registered for this event
     let hasRegisteredClients = false;
-    Object.keys(this.registeredEvents).forEach(id => {
+    Object.keys(this.registeredEvents).forEach((id) => {
       if (this.registeredEvents[id].has(eventName)) {
         hasRegisteredClients = true;
       }
@@ -429,10 +438,10 @@ export class SocketManager implements ISocketManager {
       this.messageRouter.routeMessageToClient(clientId, {
         type: MessageType.ERROR,
         payload: {
-          message: 'Not connected to Socket.IO server'
+          message: 'Not connected to Socket.IO server',
         },
         id: message.id,
-        clientId
+        clientId,
       });
       return;
     }
@@ -444,8 +453,8 @@ export class SocketManager implements ISocketManager {
         type: MessageType.EVENT,
         payload: {
           eventName,
-          args
-        }
+          args,
+        },
       });
 
       // Handle notifications if Notification Manager exists
@@ -479,4 +488,4 @@ export function createSocketManager(
   longPollingManager?: ILongPollingManager
 ): ISocketManager {
   return new SocketManager(messageRouter, ackManager, notificationManager, longPollingManager);
-} 
+}

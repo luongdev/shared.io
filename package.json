@@ -2,7 +2,8 @@
   "name": "shared.io",
   "version": "0.1.0-beta.1",
   "description": "Socket.IO client shared connection",
-  "main": "dist-cjs/shared-io.cjs.js",
+  "main": "dist/shared-io.umd.js",
+  "module": "dist/shared-io.es.js",
   "types": "dist/types/index.d.ts",
   "worker": "dist/worker.umd.js",
   "files": [
