@@ -12,7 +12,7 @@
   ],
   "scripts": {
     "dev": "vite",
-    "build": "vite build --mode development && vite build -c vite.worker.config.mts --mode development",
+    "build": "vite build --mode development && vite build -c vite.worker.config.mts --mode production",
     "build:prod": "vite build --mode production && vite build -c vite.worker.config.mts --mode production",
     "build:cjs": "vite build -c vite.cjs.config.mts",
     "test": "vitest run",

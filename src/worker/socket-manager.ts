@@ -374,6 +374,18 @@ export class SocketManager implements ISocketManager {
     // Register listener if not already registered
     if (!this.socket.hasListeners(eventName)) {
       this.socket.on(eventName, (...args: any[]) => {
+        // Check if the last argument is an acknowledgment function
+        console.debug(`Event ${eventName} received with args:`, args);
+        const lastArg = args.length > 0 ? args[args.length - 1] : null;
+        let ackFunction = null;
+
+        if (typeof lastArg === 'function') {
+          ackFunction = lastArg;
+          // Create a copy of args without the ack function for forwarding to clients
+          args = args.slice(0, -1);
+          console.debug(`Event ${eventName} received with acknowledgment function`);
+        }
+
         // Send event to all registered clients
         Object.keys(this.registeredEvents).forEach((id) => {
           if (this.registeredEvents[id].has(eventName)) {
@@ -390,6 +402,16 @@ export class SocketManager implements ISocketManager {
         // Handle notifications if Notification Manager exists
         if (this.notificationManager) {
           this.notificationManager.handleEvent(eventName, args);
+        }
+
+        // Call the acknowledgment function if it exists
+        if (ackFunction) {
+          try {
+            ackFunction({ success: true, event: eventName });
+            console.debug(`Acknowledgment sent for event ${eventName}`);
+          } catch (error) {
+            console.error(`Error calling acknowledgment function for event ${eventName}:`, error);
+          }
         }
       });
     }
