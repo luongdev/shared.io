@@ -11,6 +11,7 @@ import { IMessageRouter } from './message-router';
 import { IAckManager } from './ack-manager';
 import { INotificationManager } from './notification';
 import { ILongPollingManager } from './long-polling';
+import { IStateManager } from './simple-state';
 
 /**
  * Interface for Socket Manager
@@ -31,6 +32,8 @@ export interface ISocketManager {
   once(eventName: string, message: WorkerMessage): void;
 
   getConnectionStatus(): ConnectionStatus;
+
+  getCachedStatus(agentId: string): any | undefined;
 }
 
 /**
@@ -48,12 +51,14 @@ export class SocketManager implements ISocketManager {
    * @param ackManager ACK manager instance
    * @param notificationManager Notification manager instance
    * @param longPollingManager Long polling manager instance
+   * @param stateManager State manager instance
    */
   constructor(
     private messageRouter: IMessageRouter,
     private ackManager?: IAckManager,
     private notificationManager?: INotificationManager,
-    private longPollingManager?: ILongPollingManager
+    private longPollingManager?: ILongPollingManager,
+    private stateManager?: IStateManager
   ) {}
 
   /**
@@ -307,6 +312,48 @@ export class SocketManager implements ISocketManager {
     return new Promise((resolve, reject) => {
       const clientId = message.clientId as string;
 
+      // Special handling for request-get-current-status event to use cache if available
+      if (eventName === 'request-get-current-status' && this.stateManager && args.length > 0) {
+        const requestedAgentId = args[0]?.fsAgentId;
+        if (requestedAgentId) {
+          // Store the latest requested agent ID
+          if (this.stateManager) {
+            this.stateManager.setState('latest-requested-agent-id', requestedAgentId);
+          }
+
+          const cachedStatus = this.getCachedStatus(requestedAgentId);
+          if (cachedStatus) {
+            const cacheAge = Date.now() - (cachedStatus.cachedAt || 0);
+            const maxCacheAge = 30000; // 30 seconds max cache age
+
+            // If cache is fresh enough, return it immediately
+            if (cacheAge < maxCacheAge) {
+              console.debug(
+                `Using cached status for agent ${requestedAgentId}, age: ${cacheAge}ms`
+              );
+
+              // Use ackManager to resolve the promise if available
+              if (this.ackManager && message.id) {
+                this.ackManager.resolveAck(message.id, {
+                  status: true,
+                  event: eventName,
+                  data: cachedStatus,
+                });
+              }
+
+              resolve({
+                status: true,
+                event: eventName,
+                data: cachedStatus,
+              });
+              return;
+            } else {
+              console.debug(`Cache expired for agent ${requestedAgentId}, age: ${cacheAge}ms`);
+            }
+          }
+        }
+      }
+
       if (!this.socket || !this.socket.connected) {
         reject(new Error('Not connected to Socket.IO server'));
         return;
@@ -320,7 +367,47 @@ export class SocketManager implements ISocketManager {
 
           // Add callback to end of args
           this.socket.emit(eventName, ...args, (response: any) => {
-            this.ackManager!.resolveAck(message.id as string, response);
+            // Store response in cache if this is a status response
+            if (
+              eventName === 'request-get-current-status' &&
+              this.stateManager &&
+              response &&
+              response.data
+            ) {
+              // Make sure we're working with a valid status object
+              if (response.data.agentId && 'changeTime' in response.data) {
+                const cacheKey = `agent-status-${response.data.agentId}`;
+                // Use setStatus to ensure only newer statuses are stored
+                const wasUpdated = this.stateManager.setStatus(cacheKey, response.data);
+
+                if (wasUpdated) {
+                  // Only store the latest agent ID if status was actually updated
+                  this.stateManager.setState('latest-requested-agent-id', response.data.agentId);
+                  console.debug(
+                    `Status updated for agent ${response.data.agentId} from request-get-current-status response`
+                  );
+                  // Resolve with updated status
+                  this.ackManager!.resolveAck(message.id as string, response);
+                } else {
+                  console.debug(
+                    `Status not updated for agent ${response.data.agentId} (duplicate or outdated)`
+                  );
+                  // Resolve with the existing cached status since the incoming one wasn't valid
+                  const currentStatus = this.getCachedStatus(response.data.agentId);
+                  this.ackManager!.resolveAck(message.id as string, {
+                    ...response,
+                    data: currentStatus, // Use the validated status
+                  });
+                }
+              } else {
+                // Invalid status object
+                console.warn('Invalid status object received:', response.data);
+                this.ackManager!.resolveAck(message.id as string, response);
+              }
+            } else {
+              // For non-status responses, just pass through
+              this.ackManager!.resolveAck(message.id as string, response);
+            }
           });
 
           // Return promise from ACK Manager
@@ -328,7 +415,47 @@ export class SocketManager implements ISocketManager {
         } else {
           // Fallback if no ACK Manager
           this.socket.emit(eventName, ...args, (response: any) => {
-            resolve(response);
+            // Store response in cache if this is a status response
+            if (
+              eventName === 'request-get-current-status' &&
+              this.stateManager &&
+              response &&
+              response.data
+            ) {
+              // Make sure we're working with a valid status object
+              if (response.data.agentId && 'changeTime' in response.data) {
+                const cacheKey = `agent-status-${response.data.agentId}`;
+                // Use setStatus to ensure only newer statuses are stored
+                const wasUpdated = this.stateManager.setStatus(cacheKey, response.data);
+
+                if (wasUpdated) {
+                  // Only store the latest agent ID if status was actually updated
+                  this.stateManager.setState('latest-requested-agent-id', response.data.agentId);
+                  console.debug(
+                    `Status updated for agent ${response.data.agentId} from request-get-current-status response`
+                  );
+                  // Resolve with the updated status
+                  resolve(response);
+                } else {
+                  console.debug(
+                    `Status not updated for agent ${response.data.agentId} (duplicate or outdated)`
+                  );
+                  // Resolve with the existing cached status since the incoming one wasn't valid
+                  const currentStatus = this.getCachedStatus(response.data.agentId);
+                  resolve({
+                    ...response,
+                    data: currentStatus, // Use the validated status
+                  });
+                }
+              } else {
+                // Invalid status object
+                console.warn('Invalid status object received:', response.data);
+                resolve(response);
+              }
+            } else {
+              // For non-status responses, just pass through
+              resolve(response);
+            }
           });
         }
       } catch (error) {
@@ -386,6 +513,67 @@ export class SocketManager implements ISocketManager {
           console.debug(`Event ${eventName} received with acknowledgment function`);
         }
 
+        // Special handling for status-changed event to cache the status
+        if (eventName === 'status-changed' && args.length > 0 && this.stateManager) {
+          const statusData = args[0];
+          // Make sure we have a valid status object
+          if (statusData && statusData.agentId && 'changeTime' in statusData) {
+            const cacheKey = `agent-status-${statusData.agentId}`;
+            // Use setStatus to ensure only newer statuses are saved
+            const wasUpdated = this.stateManager.setStatus(cacheKey, statusData);
+
+            if (wasUpdated) {
+              // Only store the latest agent ID if status was actually updated
+              this.stateManager.setState('latest-requested-agent-id', statusData.agentId);
+              console.debug(
+                `Status updated for agent ${statusData.agentId} from status-changed event`
+              );
+
+              // Send validated status event to all registered clients
+              Object.keys(this.registeredEvents).forEach((id) => {
+                if (this.registeredEvents[id].has(eventName)) {
+                  this.messageRouter.routeMessageToClient(id, {
+                    type: MessageType.EVENT,
+                    payload: {
+                      eventName,
+                      args,
+                    },
+                  });
+                }
+              });
+
+              // Handle notifications if Notification Manager exists
+              if (this.notificationManager) {
+                this.notificationManager.handleEvent(eventName, args);
+              }
+            } else {
+              console.debug(
+                `Status not updated for agent ${statusData.agentId} (duplicate or outdated) - not forwarding to clients`
+              );
+              // Don't forward outdated or duplicate status events to clients
+            }
+
+            // Call the acknowledgment function if it exists
+            if (ackFunction) {
+              try {
+                ackFunction({ success: true, event: eventName, statusUpdated: wasUpdated });
+                console.debug(`Acknowledgment sent for event ${eventName}`);
+              } catch (error) {
+                console.error(
+                  `Error calling acknowledgment function for event ${eventName}:`,
+                  error
+                );
+              }
+            }
+
+            // We've handled the status-changed event specially, so return early
+            return;
+          } else {
+            console.warn('Invalid status object received for status-changed event:', statusData);
+          }
+        }
+
+        // For all other events (not status-changed, or status-changed without valid statusData)
         // Send event to all registered clients
         Object.keys(this.registeredEvents).forEach((id) => {
           if (this.registeredEvents[id].has(eventName)) {
@@ -493,6 +681,20 @@ export class SocketManager implements ISocketManager {
   public getConnectionStatus(): ConnectionStatus {
     return this.connectionStatus;
   }
+
+  /**
+   * Get cached status for an agent
+   * @param agentId Agent ID
+   * @returns Cached status or undefined if not found
+   */
+  public getCachedStatus(agentId: string): any | undefined {
+    if (!this.stateManager) {
+      return undefined;
+    }
+
+    const cacheKey = `agent-status-${agentId}`;
+    return this.stateManager.getState(cacheKey);
+  }
 }
 
 /**
@@ -501,13 +703,21 @@ export class SocketManager implements ISocketManager {
  * @param ackManager ACK manager instance
  * @param notificationManager Notification manager instance
  * @param longPollingManager Long polling manager instance
+ * @param stateManager State manager instance
  * @returns SocketManager instance
  */
 export function createSocketManager(
   messageRouter: IMessageRouter,
   ackManager?: IAckManager,
   notificationManager?: INotificationManager,
-  longPollingManager?: ILongPollingManager
+  longPollingManager?: ILongPollingManager,
+  stateManager?: IStateManager
 ): ISocketManager {
-  return new SocketManager(messageRouter, ackManager, notificationManager, longPollingManager);
+  return new SocketManager(
+    messageRouter,
+    ackManager,
+    notificationManager,
+    longPollingManager,
+    stateManager
+  );
 }

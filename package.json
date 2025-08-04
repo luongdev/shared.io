@@ -2,8 +2,7 @@
   "name": "shared.io",
   "version": "0.1.0-beta.1",
   "description": "Socket.IO client shared connection",
-  "main": "dist/shared-io.umd.js",
-  "module": "dist/shared-io.es.js",
+  "main": "dist-cjs/shared-io.cjs.js",
   "types": "dist/types/index.d.ts",
   "worker": "dist/worker.umd.js",
   "files": [
@@ -12,7 +11,7 @@
   ],
   "scripts": {
     "dev": "vite",
-    "build": "vite build --mode development && vite build -c vite.worker.config.mts --mode production",
+    "build": "vite build --mode development && vite build -c vite.worker.config.mts --mode development",
     "build:prod": "vite build --mode production && vite build -c vite.worker.config.mts --mode production",
     "build:cjs": "vite build -c vite.cjs.config.mts",
     "test": "vitest run",

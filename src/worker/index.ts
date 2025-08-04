@@ -11,6 +11,7 @@ import { createSocketManager, ISocketManager } from './socket-manager';
 import { createAckManager, IAckManager } from './ack-manager';
 import { createNotificationManager, INotificationManager } from './notification';
 import { createLongPollingManager, ILongPollingManager } from './long-polling';
+import { createStateManager, IStateManager } from './simple-state';
 
 // Khai báo biến toàn cục để tránh lỗi TypeScript
 declare const self: SharedWorkerGlobalScope;
@@ -19,13 +20,21 @@ declare const self: SharedWorkerGlobalScope;
 const messageRouter: IMessageRouter = createMessageRouter();
 const ackManager: IAckManager = createAckManager();
 const notificationManager: INotificationManager = createNotificationManager(messageRouter);
-const longPollingManager: ILongPollingManager = createLongPollingManager(messageRouter);
+const stateManager: IStateManager = createStateManager();
+const longPollingManager: ILongPollingManager = createLongPollingManager(
+  messageRouter,
+  stateManager
+);
 const socketManager: ISocketManager = createSocketManager(
   messageRouter,
   ackManager,
   notificationManager,
-  longPollingManager
+  longPollingManager,
+  stateManager
 );
+
+// Set up bidirectional relationship
+longPollingManager.setSocketManager(socketManager);
 
 /**
  * Initialize the Shared Worker
