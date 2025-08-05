@@ -12,6 +12,7 @@ import { IAckManager } from './ack-manager';
 import { INotificationManager } from './notification';
 import { ILongPollingManager } from './long-polling';
 import { IStateManager } from './simple-state';
+import { getWorkerId } from './index';
 
 /**
  * Interface for Socket Manager
@@ -85,6 +86,13 @@ export class SocketManager implements ISocketManager {
     }
 
     try {
+      // Get the worker ID and include it in the query
+      const workerId = getWorkerId();
+      const queryWithWorkerId = {
+        ...options.query,
+        workerId,
+      };
+
       // Initialize Socket.IO connection
       this.socket = io(url, {
         autoConnect: options.autoConnect,
@@ -95,7 +103,7 @@ export class SocketManager implements ISocketManager {
         timeout: options.timeout,
         transports: options.transports,
         path: options.path,
-        query: options.query,
+        query: queryWithWorkerId,
         auth: options.auth,
       });
 

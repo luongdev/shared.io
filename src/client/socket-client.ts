@@ -28,6 +28,7 @@ export interface ISharedSocketClient extends SharedSocketClient {
   on(eventName: string, callback: Function): void;
   off(eventName: string, callback?: Function): void;
   once(eventName: string, callback: Function): void;
+  getWorkerId(): Promise<string>;
   notifications: NotificationAPI;
 }
 
@@ -252,6 +253,18 @@ export class SharedSocketIOClient implements ISharedSocketClient {
 
     this.on(eventName, onceWrapper);
     this.workerClient.send({ type: MessageType.ONCE, payload: { eventName } });
+  }
+
+  /**
+   * Get the worker ID
+   * @returns Promise with the worker ID
+   */
+  public getWorkerId(): Promise<string> {
+    return this.workerClient.sendWithResponse({
+      type: MessageType.GET_WORKER_ID,
+      payload: {},
+      id: generateUniqueId(),
+    }).then((response) => response.workerId);
   }
 
   /**

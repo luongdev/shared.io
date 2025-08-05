@@ -135,6 +135,8 @@ export enum MessageType {
   SUBSCRIBE_NOTIFICATION = 'subscribeNotification',
   UNSUBSCRIBE_NOTIFICATION = 'unsubscribeNotification',
   NOTIFICATION = 'notification',
+  GET_WORKER_ID = 'getWorkerId',
+  WORKER_ID_RESPONSE = 'workerIdResponse',
 }
 
 /**
@@ -161,6 +163,9 @@ export interface SharedSocketClient {
 
   /** Đăng ký lắng nghe sự kiện một lần */
   once(eventName: string, callback: Function): void;
+
+  /** Lấy Worker ID */
+  getWorkerId(): Promise<string>;
 
   /** API thông báo */
   notifications: NotificationAPI;

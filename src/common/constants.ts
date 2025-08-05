@@ -35,6 +35,11 @@ export const ACK_TIMEOUT = 30000;
 export const CLIENT_ID_PREFIX = 'client_';
 
 /**
+ * Tiền tố cho ID worker
+ */
+export const WORKER_ID_PREFIX = 'worker_';
+
+/**
  * Các trạng thái quyền thông báo
  */
 export const NOTIFICATION_PERMISSION = {
