@@ -293,7 +293,25 @@ export class SocketManager implements ISocketManager {
     }
 
     try {
-      this.socket.emit(eventName, ...args);
+      if (eventName === 'broadcast-logout') {
+        try {
+          Object.keys(this.registeredEvents).forEach((id) => {
+            if (this.registeredEvents[id].has(eventName)) {
+              this.messageRouter.routeMessageToClient(id, {
+                type: MessageType.EVENT,
+                payload: {
+                  eventName,
+                  args,
+                },
+              });
+            }
+          });
+        } catch (error) {
+          console.warn('Broadcast logout:', error);
+        }
+      } else {
+        this.socket.emit(eventName, ...args);
+      }
     } catch (error) {
       const serializedError = serializeError(error);
 
