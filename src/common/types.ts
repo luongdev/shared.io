@@ -139,6 +139,10 @@ export enum MessageType {
   WORKER_ID_RESPONSE = 'workerIdResponse',
 }
 
+export enum EventType {
+  BROADCAST_LOGOUT = 'broadcast-logout'
+}
+
 /**
  * Client API cho Socket.IO Shared Worker
  */

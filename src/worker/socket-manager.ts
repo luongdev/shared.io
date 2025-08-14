@@ -5,7 +5,7 @@
  */
 
 import { io, Socket } from 'socket.io-client';
-import { ConnectionStatus, MessageType, SharedSocketIOOptions, WorkerMessage } from '../common/types';
+import { ConnectionStatus, EventType, MessageType, SharedSocketIOOptions, WorkerMessage } from '../common/types';
 import { generateUniqueId, serializeError } from '../common/utils';
 import { IMessageRouter } from './message-router';
 import { IAckManager } from './ack-manager';
@@ -293,18 +293,19 @@ export class SocketManager implements ISocketManager {
     }
 
     try {
-      if (eventName === 'broadcast-logout') {
+      if (eventName === EventType.BROADCAST_LOGOUT) {
         try {
           Object.keys(this.registeredEvents).forEach((id) => {
-            if (this.registeredEvents[id].has(eventName)) {
-              this.messageRouter.routeMessageToClient(id, {
-                type: MessageType.EVENT,
-                payload: {
-                  eventName,
-                  args,
-                },
-              });
+            if (!this.registeredEvents[id].has(eventName)) {
+              return;
             }
+            this.messageRouter.routeMessageToClient(id, {
+              type: MessageType.EVENT,
+              payload: {
+                eventName,
+                args,
+              },
+            });
           });
         } catch (error) {
           console.warn('Broadcast logout:', error);
