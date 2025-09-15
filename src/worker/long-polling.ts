@@ -206,7 +206,7 @@ export class LongPollingManager implements ILongPollingManager {
   // }
 
   /**
-   * Poll status for the current agent
+   * Poll status by domain and extension
    */
   private pollCurrentAgentStatus(): void {
     if (!this.stateManager) {
@@ -214,23 +214,24 @@ export class LongPollingManager implements ILongPollingManager {
       return;
     }
 
-    // Get the latest agent ID from state
-    const agentId = this.stateManager.getState<string>('latest-requested-agent-id');
+    // Get domain and extension from state
+    const domain = this.stateManager.getState<string>('polling-domain');
+    const extension = this.stateManager.getState<string>('polling-extension');
 
-    if (!agentId) {
-      console.debug('Status polling: No agent ID available');
+    if (!domain || !extension) {
+      console.debug('Status polling: No domain or extension available', { domain, extension });
       return;
     }
 
-    console.debug(`Status polling: Checking status for agent ${agentId}`);
+    console.debug(`Status polling: Checking status for domain ${domain}, extension ${extension}`);
 
     // Use socket manager to request the current status
     this.socketManager
-      .emitWithAck('request-get-current-status', [{ fsAgentId: agentId }], {
+      .emitWithAck('request-get-current-status', [{ domain, extension }], {
         type: MessageType.EMIT_WITH_ACK,
         payload: {
           eventName: 'request-get-current-status',
-          args: [{ fsAgentId: agentId }],
+          args: [{ domain, extension }],
         },
         id: `status-poll-${Date.now()}`,
         timestamp: Date.now(),
@@ -243,7 +244,8 @@ export class LongPollingManager implements ILongPollingManager {
           const validatedStatus = status.data;
 
           // Get the previous cached status to compare if it's actually new
-          const cacheKey = `agent-status-${agentId}`;
+          // Use domain-extension as cache key instead of agent ID
+          const cacheKey = `domain-status-${domain}-${extension}`;
           const previousStatus = this.stateManager.getState(cacheKey) as any;
 
           // Check if this status is different from what clients already have
@@ -255,7 +257,10 @@ export class LongPollingManager implements ILongPollingManager {
             previousStatus.changeTime === validatedStatus.changeTime;
 
           if (!isSameStatus) {
-            console.debug(`Status polling: Broadcasting new status for agent ${agentId}`);
+            console.debug(`Status polling: Broadcasting new status for domain ${domain}, extension ${extension}`);
+
+            // Store the new status in cache
+            this.stateManager.setState(cacheKey, validatedStatus);
 
             // Only broadcast if the status is different from what clients already have
             this.messageRouter.broadcastMessage({
@@ -267,15 +272,15 @@ export class LongPollingManager implements ILongPollingManager {
             });
           } else {
             console.debug(
-              `Status polling: No change in status for agent ${agentId}, not broadcasting`
+              `Status polling: No change in status for domain ${domain}, extension ${extension}, not broadcasting`
             );
           }
         }
 
-        console.debug(`Status polling: Successfully checked status for agent ${agentId}`);
+        console.debug(`Status polling: Successfully checked status for domain ${domain}, extension ${extension}`);
       })
       .catch((error: any) => {
-        console.error(`Status polling: Error fetching status for agent ${agentId}:`, error);
+        console.error(`Status polling: Error fetching status for domain ${domain}, extension ${extension}:`, error);
       });
   }
 

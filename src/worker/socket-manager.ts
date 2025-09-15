@@ -93,6 +93,16 @@ export class SocketManager implements ISocketManager {
         workerId,
       };
 
+      // Store domain and extension from query for long polling
+      if (this.stateManager && options.query) {
+        if (options.query.domain) {
+          this.stateManager.setState('polling-domain', options.query.domain);
+        }
+        if (options.query.extension) {
+          this.stateManager.setState('polling-extension', options.query.extension);
+        }
+      }
+
       // Initialize Socket.IO connection
       this.socket = io(url, {
         autoConnect: options.autoConnect,
@@ -340,42 +350,42 @@ export class SocketManager implements ISocketManager {
 
       // Special handling for request-get-current-status event to use cache if available
       if (eventName === 'request-get-current-status' && this.stateManager && args.length > 0) {
-        const requestedAgentId = args[0]?.fsAgentId;
-        if (requestedAgentId) {
-          // Store the latest requested agent ID
-          if (this.stateManager) {
-            this.stateManager.setState('latest-requested-agent-id', requestedAgentId);
-          }
+        const requestData = args[0];
+        let cachedStatus = null;
+        let cacheIdentifier = '';
 
-          const cachedStatus = this.getCachedStatus(requestedAgentId);
-          if (cachedStatus) {
-            const cacheAge = Date.now() - (cachedStatus.cachedAt || 0);
-            const maxCacheAge = 30000; // 30 seconds max cache age
+        if (requestData?.fsAgentId) {
+          cachedStatus = this.getCachedStatus(requestData.fsAgentId);
+          cacheIdentifier = `agent ${requestData.fsAgentId}`;
+        }
 
-            // If cache is fresh enough, return it immediately
-            if (cacheAge < maxCacheAge) {
-              console.debug(
-                `Using cached status for agent ${requestedAgentId}, age: ${cacheAge}ms`
-              );
+        if (cachedStatus) {
+          const cacheAge = Date.now() - (cachedStatus.cachedAt || 0);
+          const maxCacheAge = 30000; // 30 seconds max cache age
 
-              // Use ackManager to resolve the promise if available
-              if (this.ackManager && message.id) {
-                this.ackManager.resolveAck(message.id, {
-                  status: true,
-                  event: eventName,
-                  data: cachedStatus,
-                });
-              }
+          // If cache is fresh enough, return it immediately
+          if (cacheAge < maxCacheAge) {
+            console.debug(
+              `Using cached status for ${cacheIdentifier}, age: ${cacheAge}ms`
+            );
 
-              resolve({
+            // Use ackManager to resolve the promise if available
+            if (this.ackManager && message.id) {
+              this.ackManager.resolveAck(message.id, {
                 status: true,
                 event: eventName,
                 data: cachedStatus,
               });
-              return;
-            } else {
-              console.debug(`Cache expired for agent ${requestedAgentId}, age: ${cacheAge}ms`);
             }
+
+            resolve({
+              status: true,
+              event: eventName,
+              data: cachedStatus,
+            });
+            return;
+          } else {
+            console.debug(`Cache expired for ${cacheIdentifier}, age: ${cacheAge}ms`);
           }
         }
       }
@@ -402,12 +412,9 @@ export class SocketManager implements ISocketManager {
             ) {
               // Make sure we're working with a valid status object
               if (response.data.agentId && 'changeTime' in response.data) {
-                const cacheKey = `agent-status-${response.data.agentId}`;
+                const agentCacheKey = `agent-status-${response.data.agentId}`;
                 // Use setStatus to ensure only newer statuses are stored
-                const wasUpdated = this.stateManager.setStatus(cacheKey, response.data);
-
-                // Always store the latest agent ID regardless of status update
-                this.stateManager.setState('latest-requested-agent-id', response.data.agentId);
+                const wasUpdated = this.stateManager.setStatus(agentCacheKey, response.data);
 
                 if (wasUpdated) {
                   console.debug(
@@ -451,12 +458,9 @@ export class SocketManager implements ISocketManager {
             ) {
               // Make sure we're working with a valid status object
               if (response.data.agentId && 'changeTime' in response.data) {
-                const cacheKey = `agent-status-${response.data.agentId}`;
+                const agentCacheKey = `agent-status-${response.data.agentId}`;
                 // Use setStatus to ensure only newer statuses are stored
-                const wasUpdated = this.stateManager.setStatus(cacheKey, response.data);
-                
-                // Always store the latest agent ID regardless of status update
-                this.stateManager.setState('latest-requested-agent-id', response.data.agentId);
+                const wasUpdated = this.stateManager.setStatus(agentCacheKey, response.data);
 
                 if (wasUpdated) {
                   console.debug(
@@ -546,13 +550,16 @@ export class SocketManager implements ISocketManager {
           const statusData = args[0];
           // Make sure we have a valid status object
           if (statusData && statusData.agentId && 'changeTime' in statusData) {
-            const cacheKey = `agent-status-${statusData.agentId}`;
+            const agentCacheKey = `agent-status-${statusData.agentId}`;
             // Use setStatus to ensure only newer statuses are saved
-            const wasUpdated = this.stateManager.setStatus(cacheKey, statusData);
+            const wasUpdated = this.stateManager.setStatus(agentCacheKey, statusData);
             
-            // Always store the latest agent ID regardless of status update
-            this.stateManager.setState('latest-requested-agent-id', statusData.agentId);
-            
+            // Also cache by domain/extension if available in status data
+            if (statusData.domain && statusData.extension) {
+              const domainCacheKey = `domain-status-${statusData.domain}-${statusData.extension}`;
+              this.stateManager.setStatus(domainCacheKey, statusData);
+            }
+
             if (wasUpdated) {
               console.debug(
                 `Status updated for agent ${statusData.agentId} from status-changed event`
