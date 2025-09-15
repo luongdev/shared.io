@@ -406,9 +406,10 @@ export class SocketManager implements ISocketManager {
                 // Use setStatus to ensure only newer statuses are stored
                 const wasUpdated = this.stateManager.setStatus(cacheKey, response.data);
 
+                // Always store the latest agent ID regardless of status update
+                this.stateManager.setState('latest-requested-agent-id', response.data.agentId);
+
                 if (wasUpdated) {
-                  // Only store the latest agent ID if status was actually updated
-                  this.stateManager.setState('latest-requested-agent-id', response.data.agentId);
                   console.debug(
                     `Status updated for agent ${response.data.agentId} from request-get-current-status response`
                   );
@@ -453,10 +454,11 @@ export class SocketManager implements ISocketManager {
                 const cacheKey = `agent-status-${response.data.agentId}`;
                 // Use setStatus to ensure only newer statuses are stored
                 const wasUpdated = this.stateManager.setStatus(cacheKey, response.data);
+                
+                // Always store the latest agent ID regardless of status update
+                this.stateManager.setState('latest-requested-agent-id', response.data.agentId);
 
                 if (wasUpdated) {
-                  // Only store the latest agent ID if status was actually updated
-                  this.stateManager.setState('latest-requested-agent-id', response.data.agentId);
                   console.debug(
                     `Status updated for agent ${response.data.agentId} from request-get-current-status response`
                   );
@@ -547,10 +549,11 @@ export class SocketManager implements ISocketManager {
             const cacheKey = `agent-status-${statusData.agentId}`;
             // Use setStatus to ensure only newer statuses are saved
             const wasUpdated = this.stateManager.setStatus(cacheKey, statusData);
-
+            
+            // Always store the latest agent ID regardless of status update
+            this.stateManager.setState('latest-requested-agent-id', statusData.agentId);
+            
             if (wasUpdated) {
-              // Only store the latest agent ID if status was actually updated
-              this.stateManager.setState('latest-requested-agent-id', statusData.agentId);
               console.debug(
                 `Status updated for agent ${statusData.agentId} from status-changed event`
               );

@@ -291,6 +291,7 @@ export class LongPollingManager implements ILongPollingManager {
 /**
  * Create a long polling manager instance
  * @param messageRouter The message router instance
+ * @param stateManager The state manager instance
  * @returns LongPollingManager instance
  */
 export function createLongPollingManager(
