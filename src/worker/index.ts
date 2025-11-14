@@ -11,21 +11,46 @@ import { createSocketManager, ISocketManager } from './socket-manager';
 import { createAckManager, IAckManager } from './ack-manager';
 import { createNotificationManager, INotificationManager } from './notification';
 import { createLongPollingManager, ILongPollingManager } from './long-polling';
+import { createStateManager, IStateManager } from './simple-state';
+import { generateUniqueId } from '../common/utils';
+import { WORKER_ID_PREFIX } from '../common/constants';
 
 // Khai báo biến toàn cục để tránh lỗi TypeScript
 declare const self: SharedWorkerGlobalScope;
+
+// Generate a unique worker ID for this shared worker instance
+const WORKER_ID = generateUniqueId(WORKER_ID_PREFIX);
 
 // Initialize managers
 const messageRouter: IMessageRouter = createMessageRouter();
 const ackManager: IAckManager = createAckManager();
 const notificationManager: INotificationManager = createNotificationManager(messageRouter);
-const longPollingManager: ILongPollingManager = createLongPollingManager(messageRouter);
+const stateManager: IStateManager = createStateManager();
+const longPollingManager: ILongPollingManager = createLongPollingManager(
+  messageRouter,
+  stateManager
+);
 const socketManager: ISocketManager = createSocketManager(
   messageRouter,
   ackManager,
   notificationManager,
-  longPollingManager
+  longPollingManager,
+  stateManager
 );
+
+// Set up bidirectional relationship
+longPollingManager.setSocketManager(socketManager);
+
+// Store the worker ID in the state manager
+stateManager.setState('workerId', WORKER_ID);
+
+/**
+ * Get the worker ID
+ * @returns The unique worker ID
+ */
+export function getWorkerId(): string {
+  return WORKER_ID;
+}
 
 /**
  * Initialize the Shared Worker
@@ -37,7 +62,7 @@ export function initializeWorker(): void {
       handleConnect(event.ports[0]);
     });
 
-    console.log('Socket.IO Shared Worker initialized');
+    console.log(`Socket.IO Shared Worker initialized with ID: ${WORKER_ID}`);
   } catch (error) {
     console.error('Could not initialize Shared Worker:', error);
   }
@@ -133,6 +158,15 @@ export function handleMessage(message: WorkerMessage, clientId: string): void {
 
     case MessageType.UNSUBSCRIBE_NOTIFICATION:
       notificationManager.unregisterNotificationSubscription(message.payload.eventName, clientId);
+      break;
+
+    case MessageType.GET_WORKER_ID:
+      messageRouter.routeMessageToClient(clientId, {
+        type: MessageType.WORKER_ID_RESPONSE,
+        payload: { workerId: stateManager.getState<string>('workerId') || getWorkerId() },
+        id: message.id,
+        clientId,
+      });
       break;
 
     default:

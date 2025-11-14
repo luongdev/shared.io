@@ -72,6 +72,16 @@ export class Utils {
       return false;
     }
   }
+
+  /**
+   * Remove trailing slash from a URL
+   * @param url URL to process
+   * @returns URL without trailing slash
+   */
+  public static removeTrailingSlash(url: string): string {
+    if (!url) return url;
+    return url.endsWith('/') ? url.slice(0, -1) : url;
+  }
 }
 
 /**

@@ -1,17 +1,17 @@
 /**
  * Socket Client
- * 
+ *
  * This module provides a Socket.IO client interface that uses a Shared Worker.
  */
 
 import {
-  SharedSocketClient,
-  SharedSocketIOOptions,
+  ConnectionStatus,
   MessageType,
   NotificationAPI,
   NotificationOptions,
-  ConnectionStatus,
-  WorkerClient
+  SharedSocketClient,
+  SharedSocketIOOptions,
+  WorkerClient,
 } from '../common/types';
 import { createWorkerClient } from './worker-client';
 import { DEFAULT_OPTIONS } from '../common/constants';
@@ -21,13 +21,14 @@ import { generateUniqueId, requestNotificationPermission } from '../common/utils
  * Interface for Shared Socket.IO Client
  */
 export interface ISharedSocketClient extends SharedSocketClient {
-  connect(): void;
+  connect(): string;
   disconnect(): void;
   emit(eventName: string, ...args: any[]): void;
   emitWithAck(eventName: string, ...args: any[]): Promise<any>;
   on(eventName: string, callback: Function): void;
   off(eventName: string, callback?: Function): void;
   once(eventName: string, callback: Function): void;
+  getWorkerId(): Promise<string>;
   notifications: NotificationAPI;
 }
 
@@ -73,7 +74,7 @@ export class SharedSocketIOClient implements ISharedSocketClient {
   private workerClient: WorkerClient;
   private eventListeners: Record<string, Set<Function>> = {};
   private connectionStatus: ConnectionStatus = {
-    connected: false
+    connected: false,
   };
   private socketOptions: SharedSocketIOOptions;
   public notifications: NotificationAPI;
@@ -82,7 +83,10 @@ export class SharedSocketIOClient implements ISharedSocketClient {
    * @param url Socket.IO server URL
    * @param options Socket.IO options
    */
-  constructor(private url: string, options?: Partial<SharedSocketIOOptions>) {
+  constructor(
+    private url: string,
+    options?: Partial<SharedSocketIOOptions>
+  ) {
     this.socketOptions = { ...DEFAULT_OPTIONS, ...options };
     this.workerClient = createWorkerClient(this.socketOptions);
     this.notifications = new NotificationAPIImpl(this.workerClient);
@@ -102,7 +106,7 @@ export class SharedSocketIOClient implements ISharedSocketClient {
       const { eventName, args } = payload;
 
       if (this.eventListeners[eventName]) {
-        this.eventListeners[eventName].forEach(callback => {
+        this.eventListeners[eventName].forEach((callback) => {
           try {
             callback(...args);
           } catch (error) {
@@ -116,7 +120,7 @@ export class SharedSocketIOClient implements ISharedSocketClient {
       this.connectionStatus = payload.status;
 
       if (this.eventListeners['connect']) {
-        this.eventListeners['connect'].forEach(callback => {
+        this.eventListeners['connect'].forEach((callback) => {
           try {
             callback();
           } catch (error) {
@@ -130,7 +134,7 @@ export class SharedSocketIOClient implements ISharedSocketClient {
       this.connectionStatus = { connected: false, error: payload.reason };
 
       if (this.eventListeners['disconnect']) {
-        this.eventListeners['disconnect'].forEach(callback => {
+        this.eventListeners['disconnect'].forEach((callback) => {
           try {
             callback(payload.reason);
           } catch (error) {
@@ -142,7 +146,7 @@ export class SharedSocketIOClient implements ISharedSocketClient {
 
     this.workerClient.subscribe(MessageType.ERROR, (payload) => {
       if (this.eventListeners['error']) {
-        this.eventListeners['error'].forEach(callback => {
+        this.eventListeners['error'].forEach((callback) => {
           try {
             callback(payload);
           } catch (error) {
@@ -157,9 +161,19 @@ export class SharedSocketIOClient implements ISharedSocketClient {
 
   /**
    * Connect to Socket.IO server
+   * @returns Connection ID that can be used to identify this connection
    */
-  public connect(): void {
-    this.workerClient.send({ type: MessageType.CONNECT, payload: { url: this.url, options: this.socketOptions } });
+  public connect(): string {
+    const connectionId = generateUniqueId();
+    this.workerClient.send({
+      type: MessageType.CONNECT,
+      payload: {
+        url: this.url,
+        options: this.socketOptions,
+        connectionId,
+      },
+    });
+    return connectionId;
   }
 
   /**
@@ -188,7 +202,7 @@ export class SharedSocketIOClient implements ISharedSocketClient {
     return this.workerClient.sendWithResponse({
       type: MessageType.EMIT_WITH_ACK,
       payload: { eventName, args },
-      id: generateUniqueId()
+      id: generateUniqueId(),
     });
   }
 
@@ -242,6 +256,18 @@ export class SharedSocketIOClient implements ISharedSocketClient {
   }
 
   /**
+   * Get the worker ID
+   * @returns Promise with the worker ID
+   */
+  public getWorkerId(): Promise<string> {
+    return this.workerClient.sendWithResponse({
+      type: MessageType.GET_WORKER_ID,
+      payload: {},
+      id: generateUniqueId(),
+    }).then((response) => response.workerId);
+  }
+
+  /**
    * Get current connection status
    * @returns Connection status
    */
@@ -258,4 +284,4 @@ export class SharedSocketIOClient implements ISharedSocketClient {
  */
 export function createSharedSocketIO(url: string, options?: Partial<SharedSocketIOOptions>): SharedSocketClient {
   return new SharedSocketIOClient(url, options);
-} 
+}

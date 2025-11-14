@@ -22,6 +22,12 @@ export interface SharedSocketIOOptions {
   longPolling?: LongPollingConfig;
   /** URL hoặc đường dẫn tương đối đến worker script */
   workerUrl?: string | URL;
+  /** Đường dẫn socket.io (socket.io path) */
+  path?: string;
+  /** Tham số truy vấn (query params) */
+  query?: Record<string, any>;
+  /** Thông tin xác thực (auth) */
+  auth?: Record<string, any> | ((cb: (data: object) => void) => void);
 }
 
 /**
@@ -129,6 +135,8 @@ export enum MessageType {
   SUBSCRIBE_NOTIFICATION = 'subscribeNotification',
   UNSUBSCRIBE_NOTIFICATION = 'unsubscribeNotification',
   NOTIFICATION = 'notification',
+  GET_WORKER_ID = 'getWorkerId',
+  WORKER_ID_RESPONSE = 'workerIdResponse',
 }
 
 /**
@@ -136,19 +144,29 @@ export enum MessageType {
  */
 export interface SharedSocketClient {
   /** Kết nối đến server */
-  connect(): void;
+  connect(): string;
+
   /** Ngắt kết nối */
   disconnect(): void;
+
   /** Gửi sự kiện */
   emit(eventName: string, ...args: any[]): void;
+
   /** Gửi sự kiện và chờ ACK */
   emitWithAck(eventName: string, ...args: any[]): Promise<any>;
+
   /** Đăng ký lắng nghe sự kiện */
   on(eventName: string, callback: Function): void;
+
   /** Hủy đăng ký lắng nghe sự kiện */
   off(eventName: string, callback?: Function): void;
+
   /** Đăng ký lắng nghe sự kiện một lần */
   once(eventName: string, callback: Function): void;
+
+  /** Lấy Worker ID */
+  getWorkerId(): Promise<string>;
+
   /** API thông báo */
   notifications: NotificationAPI;
 }
@@ -159,6 +177,7 @@ export interface SharedSocketClient {
 export interface NotificationAPI {
   /** Đăng ký nhận thông báo */
   subscribe(eventName: string, options: NotificationOptions): void;
+
   /** Hủy đăng ký nhận thông báo */
   unsubscribe(eventName: string): void;
 }
@@ -190,14 +209,19 @@ export interface NotificationOptions {
 export interface WorkerClient {
   /** Kết nối đến worker */
   connect(): void;
+
   /** Ngắt kết nối */
   disconnect(): void;
+
   /** Gửi tin nhắn đến worker */
   send(message: WorkerMessage): void;
+
   /** Gửi tin nhắn và chờ phản hồi */
   sendWithResponse(message: WorkerMessage): Promise<any>;
+
   /** Đăng ký lắng nghe tin nhắn */
   subscribe(type: string, callback: (payload: any) => void): void;
+
   /** Hủy đăng ký lắng nghe tin nhắn */
   unsubscribe(type: string, callback?: (payload: any) => void): void;
 }
