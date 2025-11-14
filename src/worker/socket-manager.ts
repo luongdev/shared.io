@@ -354,7 +354,12 @@ export class SocketManager implements ISocketManager {
         let cachedStatus = null;
         let cacheIdentifier = '';
 
-        if (requestData?.fsAgentId) {
+        // Try to get cached status by domain/extension first, then by agentId
+        if (requestData?.domain && requestData?.extension) {
+          const domainCacheKey = `domain-status-${requestData.domain}-${requestData.extension}`;
+          cachedStatus = this.stateManager.getState(domainCacheKey);
+          cacheIdentifier = `domain ${requestData.domain}/${requestData.extension}`;
+        } else if (requestData?.fsAgentId) {
           cachedStatus = this.getCachedStatus(requestData.fsAgentId);
           cacheIdentifier = `agent ${requestData.fsAgentId}`;
         }
@@ -403,7 +408,7 @@ export class SocketManager implements ISocketManager {
 
           // Add callback to end of args
           this.socket.emit(eventName, ...args, (response: any) => {
-            // Store response in cache if this is a status response
+            // Store response in cache if this is a status response (no validation for server responses)
             if (
               eventName === 'request-get-current-status' &&
               this.stateManager &&
@@ -412,36 +417,29 @@ export class SocketManager implements ISocketManager {
             ) {
               // Make sure we're working with a valid status object
               if (response.data.agentId && 'changeTime' in response.data) {
-                const agentCacheKey = `agent-status-${response.data.agentId}`;
-                // Use setStatus to ensure only newer statuses are stored
-                const wasUpdated = this.stateManager.setStatus(agentCacheKey, response.data);
+                const statusData = {
+                  ...response.data,
+                  cachedAt: Date.now(),
+                };
 
-                if (wasUpdated) {
-                  console.debug(
-                    `Status updated for agent ${response.data.agentId} from request-get-current-status response`
-                  );
-                  // Resolve with updated status
-                  this.ackManager!.resolveAck(message.id as string, response);
-                } else {
-                  console.debug(
-                    `Status not updated for agent ${response.data.agentId} (duplicate or outdated)`
-                  );
-                  // Resolve with the existing cached status since the incoming one wasn't valid
-                  const currentStatus = this.getCachedStatus(response.data.agentId);
-                  this.ackManager!.resolveAck(message.id as string, {
-                    ...response,
-                    data: currentStatus, // Use the validated status
-                  });
+                // Store by agent ID
+                const agentCacheKey = `agent-status-${response.data.agentId}`;
+                this.stateManager.setState(agentCacheKey, statusData);
+
+                // Also store by domain/extension if available
+                if (response.data.domain && response.data.extension) {
+                  const domainCacheKey = `domain-status-${response.data.domain}-${response.data.extension}`;
+                  this.stateManager.setState(domainCacheKey, statusData);
                 }
-              } else {
-                // Invalid status object
-                console.warn('Invalid status object received:', response.data);
-                this.ackManager!.resolveAck(message.id as string, response);
+
+                console.debug(
+                  `Status cached for agent ${response.data.agentId} from request-get-current-status response`
+                );
               }
-            } else {
-              // For non-status responses, just pass through
-              this.ackManager!.resolveAck(message.id as string, response);
             }
+
+            // Always resolve with server response
+            this.ackManager!.resolveAck(message.id as string, response);
           });
 
           // Return promise from ACK Manager
@@ -449,7 +447,7 @@ export class SocketManager implements ISocketManager {
         } else {
           // Fallback if no ACK Manager
           this.socket.emit(eventName, ...args, (response: any) => {
-            // Store response in cache if this is a status response
+            // Store response in cache if this is a status response (no validation for server responses)
             if (
               eventName === 'request-get-current-status' &&
               this.stateManager &&
@@ -458,36 +456,29 @@ export class SocketManager implements ISocketManager {
             ) {
               // Make sure we're working with a valid status object
               if (response.data.agentId && 'changeTime' in response.data) {
-                const agentCacheKey = `agent-status-${response.data.agentId}`;
-                // Use setStatus to ensure only newer statuses are stored
-                const wasUpdated = this.stateManager.setStatus(agentCacheKey, response.data);
+                const statusData = {
+                  ...response.data,
+                  cachedAt: Date.now(),
+                };
 
-                if (wasUpdated) {
-                  console.debug(
-                    `Status updated for agent ${response.data.agentId} from request-get-current-status response`
-                  );
-                  // Resolve with the updated status
-                  resolve(response);
-                } else {
-                  console.debug(
-                    `Status not updated for agent ${response.data.agentId} (duplicate or outdated)`
-                  );
-                  // Resolve with the existing cached status since the incoming one wasn't valid
-                  const currentStatus = this.getCachedStatus(response.data.agentId);
-                  resolve({
-                    ...response,
-                    data: currentStatus, // Use the validated status
-                  });
+                // Store by agent ID
+                const agentCacheKey = `agent-status-${response.data.agentId}`;
+                this.stateManager.setState(agentCacheKey, statusData);
+
+                // Also store by domain/extension if available
+                if (response.data.domain && response.data.extension) {
+                  const domainCacheKey = `domain-status-${response.data.domain}-${response.data.extension}`;
+                  this.stateManager.setState(domainCacheKey, statusData);
                 }
-              } else {
-                // Invalid status object
-                console.warn('Invalid status object received:', response.data);
-                resolve(response);
+
+                console.debug(
+                  `Status cached for agent ${response.data.agentId} from request-get-current-status response`
+                );
               }
-            } else {
-              // For non-status responses, just pass through
-              resolve(response);
             }
+
+            // Always resolve with server response
+            resolve(response);
           });
         }
       } catch (error) {
@@ -545,13 +536,14 @@ export class SocketManager implements ISocketManager {
           console.debug(`Event ${eventName} received with acknowledgment function`);
         }
 
-        // Special handling for status-changed event to cache the status
+        // Special handling for status-changed event to validate and cache the status
+        // Validation is needed here because push events can arrive out of order
         if (eventName === 'status-changed' && args.length > 0 && this.stateManager) {
           const statusData = args[0];
           // Make sure we have a valid status object
           if (statusData && statusData.agentId && 'changeTime' in statusData) {
             const agentCacheKey = `agent-status-${statusData.agentId}`;
-            // Use setStatus to ensure only newer statuses are saved
+            // Use setStatus to ensure only newer statuses are saved (prevents out-of-order issues)
             const wasUpdated = this.stateManager.setStatus(agentCacheKey, statusData);
             
             // Also cache by domain/extension if available in status data

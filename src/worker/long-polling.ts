@@ -238,13 +238,9 @@ export class LongPollingManager implements ILongPollingManager {
       })
       .then((status: any) => {
         if (status && status.data) {
-          // Get the verified status from the response
-          // The socketManager.emitWithAck already validates the status using setStatus
-          // and returns the most up-to-date status (which may be the cached one if the incoming one was outdated)
-          const validatedStatus = status.data;
+          const newStatus = status.data;
 
           // Get the previous cached status to compare if it's actually new
-          // Use domain-extension as cache key instead of agent ID
           const cacheKey = `domain-status-${domain}-${extension}`;
           const previousStatus = this.stateManager.getState(cacheKey) as any;
 
@@ -252,22 +248,19 @@ export class LongPollingManager implements ILongPollingManager {
           // This prevents unnecessary UI updates during polling
           const isSameStatus =
             previousStatus &&
-            previousStatus.status === validatedStatus.status &&
-            previousStatus.reasonName === validatedStatus.reasonName &&
-            previousStatus.changeTime === validatedStatus.changeTime;
+            previousStatus.status === newStatus.status &&
+            previousStatus.reasonName === newStatus.reasonName &&
+            previousStatus.changeTime === newStatus.changeTime;
 
           if (!isSameStatus) {
             console.debug(`Status polling: Broadcasting new status for domain ${domain}, extension ${extension}`);
 
-            // Store the new status in cache
-            this.stateManager.setState(cacheKey, validatedStatus);
-
-            // Only broadcast if the status is different from what clients already have
+            // Broadcast the new status to clients
             this.messageRouter.broadcastMessage({
               type: MessageType.EVENT,
               payload: {
                 eventName: 'status-changed',
-                args: [validatedStatus],
+                args: [newStatus],
               },
             });
           } else {
